@@ -30,16 +30,28 @@ import com.ctre.phoenix.motorcontrol.StatusFrameEnhanced;
 import com.ctre.phoenix.motorcontrol.can.*;
 
 public class Robot extends IterativeRobot {
-	TalonSRX _talon = new TalonSRX(3);
+	TalonSRX _talonFrontLeft = new TalonSRX(13);
+	TalonSRX _talonBackLeft = new TalonSRX(14);
+	TalonSRX _talonFrontRight = new TalonSRX(11);
+	TalonSRX _talonBackRight = new TalonSRX(12);
 	Joystick _joy = new Joystick(0);
 	StringBuilder _sb = new StringBuilder();
 
 	public void robotInit() {
-
+		setInfo(_talonFrontLeft);
+		setInfo(_talonFrontRight);
+		_talonFrontLeft.setInverted(true);
+		_talonFrontRight.setInverted(false);
+		_talonBackRight.setInverted(false);
+		_talonBackLeft.setInverted(true);
+		
+	}
+	
+	public void setInfo(TalonSRX _talon)
+	{
 		/* first choose the sensor */
-		_talon.configSelectedFeedbackSensor(FeedbackDevice.CTRE_MagEncoder_Relative, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
-		_talon.setSensorPhase(true);
-		_talon.setInverted(false);
+		_talon.configSelectedFeedbackSensor(FeedbackDevice.QuadEncoder, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
+		_talon.setSensorPhase(false);
 
 		/* Set relevant frame periods to be at least as fast as periodic rate */
 		_talon.setStatusFramePeriod(StatusFrameEnhanced.Status_13_Base_PIDF0, 10, Constants.kTimeoutMs);
@@ -53,47 +65,63 @@ public class Robot extends IterativeRobot {
 
 		/* set closed loop gains in slot0 - see documentation */
 		_talon.selectProfileSlot(Constants.kSlotIdx, Constants.kPIDLoopIdx);
-		_talon.config_kF(0, 0.2, Constants.kTimeoutMs);
-		_talon.config_kP(0, 0.2, Constants.kTimeoutMs);
+		_talon.config_kF(0, 0.1030543579, Constants.kTimeoutMs);
+		_talon.config_kP(0, 0.02095*2*2*2*2*2, Constants.kTimeoutMs);
 		_talon.config_kI(0, 0, Constants.kTimeoutMs);
 		_talon.config_kD(0, 0, Constants.kTimeoutMs);
 		/* set acceleration and vcruise velocity - see documentation */
-		_talon.configMotionCruiseVelocity(15000, Constants.kTimeoutMs);
-		_talon.configMotionAcceleration(6000, Constants.kTimeoutMs);
+		_talon.configMotionCruiseVelocity(7445, Constants.kTimeoutMs);
+		_talon.configMotionAcceleration(7445, Constants.kTimeoutMs);
 		/* zero the sensor */
 		_talon.setSelectedSensorPosition(0, Constants.kPIDLoopIdx, Constants.kTimeoutMs);
 	}
-
+	
 	/**
 	 * This function is called periodically during operator control
 	 */
 	public void teleopPeriodic() {
+		_talonBackLeft.set(ControlMode.Follower, _talonFrontLeft.getDeviceID());
+		_talonBackRight.set(ControlMode.Follower, _talonFrontRight.getDeviceID());
 		/* get gamepad axis - forward stick is positive */
 		double leftYstick = -1.0 * _joy.getY();
+		leftYstick *= Math.abs(leftYstick*leftYstick);
 		/* calculate the percent motor output */
-		double motorOutput = _talon.getMotorOutputPercent();
+		/* calculate the percent motor output */
+		double motorOutput = _talonFrontLeft.getMotorOutputPercent();
+		double motorOutput1 = _talonFrontRight.getMotorOutputPercent();
+		
 		/* prepare line to print */
 		_sb.append("\tOut%:");
 		_sb.append(motorOutput);
 		_sb.append("\tVel:");
-		_sb.append(_talon.getSelectedSensorVelocity(Constants.kPIDLoopIdx));
-
+		_sb.append(_talonFrontLeft.getSelectedSensorVelocity(Constants.kPIDLoopIdx));
+		
+		_sb.append("\tOut1%:");
+		_sb.append(motorOutput1);
+		_sb.append("\tVel1:");
+		_sb.append(_talonFrontRight.getSelectedSensorVelocity(Constants.kPIDLoopIdx));
+		
 		if (_joy.getRawButton(1)) {
 			/* Motion Magic - 4096 ticks/rev * 10 Rotations in either direction */
-			double targetPos = leftYstick * 4096 * 10.0;
-			_talon.set(ControlMode.MotionMagic, targetPos);
-
+			double targetPos = leftYstick * 8192 * 3;
+			_talonFrontLeft.set(ControlMode.MotionMagic, targetPos);
+			_talonFrontRight.set(ControlMode.MotionMagic, targetPos);
 			/* append more signals to print when in speed mode. */
 			_sb.append("\terr:");
-			_sb.append(_talon.getClosedLoopError(Constants.kPIDLoopIdx));
+			_sb.append(_talonFrontLeft.getClosedLoopError(Constants.kPIDLoopIdx));
+			
+			_sb.append("\terr1:");
+			_sb.append(_talonFrontRight.getClosedLoopError(Constants.kPIDLoopIdx));
+			
 			_sb.append("\ttrg:");
 			_sb.append(targetPos);
 		} else {
 			/* Percent voltage mode */
-			_talon.set(ControlMode.PercentOutput, leftYstick);
+			_talonFrontRight.set(ControlMode.PercentOutput, leftYstick);
+			_talonFrontLeft.set(ControlMode.PercentOutput, leftYstick);
 		}
 		/* instrumentation */
-		Instrum.Process(_talon, _sb);
+		Instrum.Process(_talonFrontLeft, _sb);
 		try {
 			TimeUnit.MILLISECONDS.sleep(10);
 		} catch (Exception e) {
